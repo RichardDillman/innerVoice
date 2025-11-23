@@ -6,6 +6,8 @@
 
 This is a proper **Model Context Protocol (MCP) server** that enables any Claude instance to communicate with you via Telegram. Just grant Claude access to this MCP server, and it can send notifications, ask questions, and receive messages from you in real-time!
 
+> **🆕 New to MCP servers?** Start with the [Beginner's Guide](BEGINNER-GUIDE.md) - zero experience required!
+>
 > **Free to use, share, and modify!** See [LICENSE](LICENSE) for details.
 
 ## Why This Exists
