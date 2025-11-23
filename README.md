@@ -1,6 +1,8 @@
-# Claude Telegram Bridge
+# InnerVoice
 
-**MCP Server for Two-Way Communication with Telegram**
+**Your inner thoughts, delivered to Telegram**
+
+*MCP Server for Two-Way Communication with Claude Code and any app*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -58,15 +60,13 @@ This is a **standard MCP server** that works like any other MCP tool. Once insta
 
 ```bash
 # Clone or download this repo
-cd claude-telegram-bridge
+cd innervoice
 
 # Install dependencies
 pnpm install
 
-# Copy environment template
-cp .env.example .env
-
-# Edit .env and add your bot token
+# The .env file is created automatically!
+# Just edit it and add your bot token
 # TELEGRAM_BOT_TOKEN=your_token_here
 ```
 
@@ -104,7 +104,7 @@ pnpm daemon
 #### Option A: Auto-Generate Config (Easiest)
 
 ```bash
-cd claude-telegram-bridge
+cd innervoice
 ./scripts/get-mcp-config.sh
 ```
 
@@ -117,10 +117,10 @@ Add to your Claude Code MCP settings (`~/.config/claude-code/settings/mcp.json`)
 ```json
 {
   "mcpServers": {
-    "telegram": {
+    "innervoice": {
       "command": "node",
       "args": [
-        "/ABSOLUTE/PATH/TO/claude-telegram-bridge/dist/mcp-server.js"
+        "/ABSOLUTE/PATH/TO/innervoice/dist/mcp-server.js"
       ],
       "env": {
         "TELEGRAM_BRIDGE_URL": "http://localhost:3456"
@@ -132,7 +132,7 @@ Add to your Claude Code MCP settings (`~/.config/claude-code/settings/mcp.json`)
 
 **Find your path:**
 ```bash
-cd claude-telegram-bridge && pwd
+cd innervoice && pwd
 # Use output: <result>/dist/mcp-server.js
 ```
 
@@ -232,7 +232,7 @@ git add .
 git commit -m "Initial commit: Telegram MCP server"
 
 # Add your remote
-git remote add origin https://github.com/yourusername/claude-telegram-bridge.git
+git remote add origin https://github.com/yourusername/innervoice.git
 
 # Push
 git push -u origin main
@@ -488,5 +488,5 @@ MIT License - see [LICENSE](LICENSE) for details
 
 ## Contact
 
-- **Issues:** https://github.com/RichardDillman/claude-telegram-bridge/issues
+- **Issues:** https://github.com/RichardDillman/innervoice/issues
 - **Email:** rdillman@gmail.com
