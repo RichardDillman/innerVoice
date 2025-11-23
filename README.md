@@ -228,10 +228,14 @@ The toggle state is preserved while the bridge is running, and you'll get a Tele
 
 By default, AFK mode only sends notifications when Claude explicitly uses notification tools. If you want to receive Telegram alerts when **permission prompts** appear (so you know Claude is waiting for approval), install the permission hook:
 
+**Recommended: Install Globally (works in all projects)**
 ```bash
-# From the innervoice directory
 cd /path/to/innervoice
+./scripts/install-hook.sh --global
+```
 
+**Or install per-project:**
+```bash
 # Install in a specific project
 ./scripts/install-hook.sh /path/to/your/project
 
@@ -246,7 +250,9 @@ This will send you a Telegram message like:
 > **Action:** Check scraped sets files
 > Check your terminal to approve or deny.
 
-**To uninstall:** Simply delete `.claude/hooks/PermissionRequest.sh` from your project.
+**To uninstall:**
+- Global: `rm ~/.claude/hooks/PermissionRequest.sh`
+- Per-project: `rm .claude/hooks/PermissionRequest.sh`
 
 ### 8. Verify Global Setup
 
