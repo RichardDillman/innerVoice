@@ -28,17 +28,14 @@ After trying email, SMS, and Google Chat integrations, Telegram emerged as the b
 - 🚀 **Background Service** - Runs independently, always available
 - 🔧 **MCP Protocol** - Works as a standard MCP server in any Claude project
 
-## Using in Other Projects
+## How It Works
 
-**Already have the bridge installed?** Just add this to your project's `.claude/mcp.json`:
+This is a **standard MCP server** that works like any other MCP tool. Once installed and configured:
 
-```bash
-# Quick command to get your config
-cd /path/to/claude-telegram-bridge
-./scripts/get-mcp-config.sh > ../your-project/.claude/mcp.json
-```
-
-Or manually copy the MCP config - see [SETUP-FOR-OTHER-PROJECTS.md](SETUP-FOR-OTHER-PROJECTS.md)
+1. **Bridge runs** as a background service (connects to Telegram)
+2. **MCP server** is auto-started by Claude when needed
+3. **Claude discovers** 5 tools automatically
+4. **You communicate** via Telegram in real-time
 
 ## Quick Start
 
@@ -479,6 +476,15 @@ HOST=localhost
 ENABLED=true
 ```
 
+## Development
+
+Want to contribute or modify the bridge? See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details
+
 ## Contact
 
-rdillman@gmail.com
+- **Issues:** https://github.com/RichardDillman/claude-telegram-bridge/issues
+- **Email:** rdillman@gmail.com
