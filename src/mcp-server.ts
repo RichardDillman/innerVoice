@@ -218,6 +218,14 @@ const TOOLS: Tool[] = [
       properties: {},
     },
   },
+  {
+    name: 'telegram_check_queue',
+    description: 'Check if there are any queued messages for this project. Use this on startup to see if the user sent any messages while Claude was offline.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 // Create the MCP server
@@ -395,6 +403,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `${icon} InnerVoice AFK mode toggled: ${status}\n\n${result.message}`,
+            },
+          ],
+        };
+      }
+
+      case 'telegram_check_queue': {
+        const { name: projectName } = getProjectInfo();
+
+        const response = await fetch(`${BRIDGE_URL}/queue/${encodeURIComponent(projectName)}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to check queue');
+        }
+
+        const result: any = await response.json();
+        const tasks = result.tasks || [];
+
+        if (tasks.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: '📭 No queued messages for this project',
+              },
+            ],
+          };
+        }
+
+        const taskList = tasks.map((t: any, i: number) => {
+          const timestamp = new Date(t.timestamp).toLocaleString();
+          return `${i + 1}. From *${t.from}* (${timestamp})\n   ${t.message}`;
+        }).join('\n\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `📬 You have ${tasks.length} queued message(s):\n\n${taskList}\n\n_These messages were sent while you were offline._`,
             },
           ],
         };

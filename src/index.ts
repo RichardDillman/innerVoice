@@ -3,6 +3,13 @@ import express from 'express';
 import dotenv from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
+import {
+  enqueueTask,
+  getPendingTasks,
+  markTaskDelivered,
+  getQueueSummary,
+  cleanupOldTasks
+} from './queue-manager.js';
 
 dotenv.config();
 
@@ -144,9 +151,31 @@ bot.command('sessions', async (ctx) => {
   }).join('\n\n');
 
   await ctx.reply(
-    `*Active Claude Sessions* (${sessions.length})\n\n${sessionList}\n\n_Reply with #sessionId to send a message to a specific session_`,
+    `*Active Claude Sessions* (${sessions.length})\n\n${sessionList}\n\n_To send message to specific project: ProjectName: your message_`,
     { parse_mode: 'Markdown' }
   );
+});
+
+bot.command('queue', async (ctx) => {
+  try {
+    const summary = await getQueueSummary();
+
+    if (summary.length === 0) {
+      await ctx.reply('📭 No queued messages');
+      return;
+    }
+
+    const queueList = summary.map((s, i) => {
+      return `${i + 1}. *${s.projectName}*\n   📥 ${s.pending} pending (${s.total} total)`;
+    }).join('\n\n');
+
+    await ctx.reply(
+      `*Queued Messages* (${summary.length} projects)\n\n${queueList}`,
+      { parse_mode: 'Markdown' }
+    );
+  } catch (error: any) {
+    await ctx.reply(`❌ Error: ${error.message}`);
+  }
 });
 
 // Listen for any text messages from user
@@ -167,7 +196,45 @@ bot.on('text', async (ctx) => {
     return;
   }
 
-  // Add to message queue for processing
+  // Check if message is targeted to a specific project: "ProjectName: message"
+  const projectMatch = message.match(/^([a-zA-Z0-9-_]+):\s*(.+)/);
+  if (projectMatch) {
+    const [, targetProject, actualMessage] = projectMatch;
+
+    // Check if project has an active session
+    const activeSession = Array.from(activeSessions.values())
+      .find(s => s.projectName.toLowerCase() === targetProject.toLowerCase());
+
+    if (activeSession) {
+      // Add to message queue with session ID
+      messageQueue.push({
+        from,
+        message: actualMessage,
+        timestamp: new Date(),
+        read: false,
+        sessionId: activeSession.id
+      });
+      await ctx.reply(`💬 Message sent to active session: *${activeSession.projectName}*`, { parse_mode: 'Markdown' });
+    } else {
+      // Queue for when project becomes active
+      try {
+        await enqueueTask({
+          projectName: targetProject,
+          projectPath: '/unknown',
+          message: actualMessage,
+          from,
+          priority: 'normal',
+          timestamp: new Date()
+        });
+        await ctx.reply(`📥 Message queued for *${targetProject}* (offline)\n\nIt will be delivered when Claude starts in that project.`, { parse_mode: 'Markdown' });
+      } catch (error: any) {
+        await ctx.reply(`❌ Failed to queue message: ${error.message}`);
+      }
+    }
+    return;
+  }
+
+  // No project specified - add to general message queue
   messageQueue.push({
     from,
     message,
@@ -243,6 +310,66 @@ app.get('/sessions', (req, res) => {
   }));
 
   res.json({ sessions, count: sessions.length });
+});
+
+// Queue management endpoints
+app.post('/queue/add', async (req, res) => {
+  const { projectName, projectPath, message, from, priority = 'normal' } = req.body;
+
+  if (!projectName || !message || !from) {
+    return res.status(400).json({ error: 'projectName, message, and from are required' });
+  }
+
+  try {
+    const task = await enqueueTask({
+      projectName,
+      projectPath: projectPath || '/unknown',
+      message,
+      from,
+      priority,
+      timestamp: new Date()
+    });
+
+    res.json({ success: true, taskId: task.id, task });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/queue/:projectName', async (req, res) => {
+  const { projectName } = req.params;
+
+  try {
+    const tasks = await getPendingTasks(projectName);
+    res.json({ projectName, tasks, count: tasks.length });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/queue/:projectName/mark-delivered', async (req, res) => {
+  const { projectName } = req.params;
+  const { taskId } = req.body;
+
+  if (!taskId) {
+    return res.status(400).json({ error: 'taskId is required' });
+  }
+
+  try {
+    await markTaskDelivered(projectName, taskId);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/queue/summary', async (req, res) => {
+  try {
+    const summary = await getQueueSummary();
+    res.json({ summary, totalProjects: summary.length });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // HTTP endpoint for sending notifications
