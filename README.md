@@ -224,6 +224,30 @@ This is perfect for:
 
 The toggle state is preserved while the bridge is running, and you'll get a Telegram message confirming each change.
 
+#### Optional: Install Permission Notification Hook
+
+By default, AFK mode only sends notifications when Claude explicitly uses notification tools. If you want to receive Telegram alerts when **permission prompts** appear (so you know Claude is waiting for approval), install the permission hook:
+
+```bash
+# From the innervoice directory
+cd /path/to/innervoice
+
+# Install in a specific project
+./scripts/install-hook.sh /path/to/your/project
+
+# Or install in current directory
+cd /path/to/your/project
+/path/to/innervoice/scripts/install-hook.sh
+```
+
+This will send you a Telegram message like:
+> ⏸️ **Claude needs permission**
+> **Tool:** `Bash`
+> **Action:** Check scraped sets files
+> Check your terminal to approve or deny.
+
+**To uninstall:** Simply delete `.claude/hooks/PermissionRequest.sh` from your project.
+
 ### 8. Verify Global Setup
 
 After adding the MCP server, verify it's available globally:
