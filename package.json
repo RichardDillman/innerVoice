@@ -1,0 +1,40 @@
+{
+  "name": "claude-telegram-bridge",
+  "version": "1.0.0",
+  "description": "Standalone Telegram notification bridge for Claude Code and any other apps",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "telegram-bridge-mcp": "dist/mcp-server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "mcp": "tsx src/mcp-server.ts",
+    "start": "node dist/index.js",
+    "daemon": "pm2 start dist/index.js --name claude-telegram",
+    "stop": "pm2 stop claude-telegram",
+    "logs": "pm2 logs claude-telegram"
+  },
+  "keywords": [
+    "telegram",
+    "notifications",
+    "claude",
+    "bridge"
+  ],
+  "author": "rdillman@gmail.com",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

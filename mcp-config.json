@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "telegram": {
+      "command": "node",
+      "args": [
+        "/ABSOLUTE/PATH/TO/claude-telegram-bridge/dist/mcp-server.js"
+      ],
+      "env": {
+        "TELEGRAM_BRIDGE_URL": "http://localhost:3456"
+      }
+    }
+  }
+}
+
