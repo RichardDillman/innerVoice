@@ -7,8 +7,93 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
+import { spawn, ChildProcess } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const BRIDGE_URL = process.env.TELEGRAM_BRIDGE_URL || 'http://localhost:3456';
+const BRIDGE_PORT = new URL(BRIDGE_URL).port || '3456';
+const BRIDGE_HOST = new URL(BRIDGE_URL).hostname || 'localhost';
+
+let bridgeProcess: ChildProcess | null = null;
+
+// Check if the bridge is running
+async function isBridgeRunning(): Promise<boolean> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/health`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Start the Telegram bridge
+async function startBridge(): Promise<void> {
+  console.error('🚀 Starting Telegram bridge...');
+
+  // Find the project root (one level up from dist or src)
+  const projectRoot = join(__dirname, '..');
+  const bridgeScript = join(projectRoot, 'dist', 'index.js');
+
+  // Start the bridge process
+  bridgeProcess = spawn('node', [bridgeScript], {
+    env: {
+      ...process.env,
+      PORT: BRIDGE_PORT,
+      HOST: BRIDGE_HOST,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false,
+  });
+
+  // Log bridge output
+  if (bridgeProcess.stdout) {
+    bridgeProcess.stdout.on('data', (data) => {
+      console.error(`[Bridge] ${data.toString().trim()}`);
+    });
+  }
+
+  if (bridgeProcess.stderr) {
+    bridgeProcess.stderr.on('data', (data) => {
+      console.error(`[Bridge] ${data.toString().trim()}`);
+    });
+  }
+
+  bridgeProcess.on('error', (error) => {
+    console.error('❌ Bridge process error:', error);
+  });
+
+  bridgeProcess.on('exit', (code) => {
+    console.error(`⚠️  Bridge process exited with code ${code}`);
+    bridgeProcess = null;
+  });
+
+  // Wait for the bridge to be ready
+  for (let i = 0; i < 10; i++) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (await isBridgeRunning()) {
+      console.error('✅ Telegram bridge is ready');
+      return;
+    }
+  }
+
+  throw new Error('Bridge failed to start after 5 seconds');
+}
+
+// Ensure the bridge is running
+async function ensureBridge(): Promise<void> {
+  if (await isBridgeRunning()) {
+    console.error('✅ Telegram bridge is already running');
+    return;
+  }
+
+  await startBridge();
+}
 
 // Define the Telegram bridge tools
 const TOOLS: Tool[] = [
@@ -76,6 +161,14 @@ const TOOLS: Tool[] = [
   {
     name: 'telegram_check_health',
     description: 'Check the health and status of the Telegram bridge. Returns connection status, unread message count, and pending questions.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'telegram_toggle_afk',
+    description: 'Toggle InnerVoice AFK mode - enables or disables Telegram notifications. Use this when going away from the system to enable notifications, or when back to disable them.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -235,6 +328,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'telegram_toggle_afk': {
+        const response = await fetch(`${BRIDGE_URL}/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to toggle AFK mode');
+        }
+
+        const result: any = await response.json();
+        const icon = result.enabled ? '🟢' : '🔴';
+        const status = result.enabled ? 'ENABLED' : 'DISABLED';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `${icon} InnerVoice AFK mode toggled: ${status}\n\n${result.message}`,
+            },
+          ],
+        };
+      }
+
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -252,8 +369,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// Cleanup function
+function cleanup() {
+  console.error('\n👋 Shutting down MCP server...');
+  if (bridgeProcess) {
+    console.error('🛑 Stopping bridge process...');
+    bridgeProcess.kill('SIGTERM');
+    bridgeProcess = null;
+  }
+}
+
+// Handle shutdown signals
+process.on('SIGINT', () => {
+  cleanup();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  cleanup();
+  process.exit(0);
+});
+
 // Start the server
 async function main() {
+  // Ensure the bridge is running before starting the MCP server
+  await ensureBridge();
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('🚀 Telegram MCP server running on stdio');
@@ -261,5 +402,6 @@ async function main() {
 
 main().catch((error) => {
   console.error('Fatal error:', error);
+  cleanup();
   process.exit(1);
 });

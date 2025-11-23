@@ -101,23 +101,63 @@ pnpm daemon
 
 ### 5. Add MCP Server to Claude
 
-#### Option A: Auto-Generate Config (Easiest)
+> **✨ Auto-Start Feature:** The MCP server now automatically starts the Telegram bridge when needed - no need to run it separately!
 
+#### Option A: Claude Code CLI (Recommended)
+
+> **Note:** Using `claude mcp add` automatically adds the server **globally** (available in all projects). This is the recommended approach.
+
+**For Mac and Linux:**
 ```bash
-cd innervoice
-./scripts/get-mcp-config.sh
+# Navigate to the innervoice directory
+cd /path/to/innervoice
+
+# Add the MCP server globally (available in all projects)
+claude mcp add --transport stdio telegram \
+  --env TELEGRAM_BRIDGE_URL=http://localhost:3456 \
+  -- node "$(pwd)/dist/mcp-server.js"
+
+# Verify it was added globally
+claude mcp list
 ```
 
-Copy the output to your MCP config file.
+**For Windows (PowerShell):**
+```powershell
+# Navigate to the innervoice directory
+cd C:\path\to\innervoice
 
-#### Option B: Manual Setup
+# Add the MCP server globally
+claude mcp add --transport stdio telegram `
+  --env TELEGRAM_BRIDGE_URL=http://localhost:3456 `
+  -- node "$((Get-Location).Path)\dist\mcp-server.js"
 
-Add to your Claude Code MCP settings (`~/.config/claude-code/settings/mcp.json`):
+# Verify it was added
+claude mcp list
+```
+
+**For Windows (Command Prompt):**
+```cmd
+# Navigate to the innervoice directory
+cd C:\path\to\innervoice
+
+# Add the MCP server globally
+claude mcp add --transport stdio telegram --env TELEGRAM_BRIDGE_URL=http://localhost:3456 -- node "%CD%\dist\mcp-server.js"
+
+# Verify it was added
+claude mcp list
+```
+
+#### Option B: Manual Config File Setup
+
+Add to your Claude Code MCP settings:
+
+**Mac/Linux:** `~/.claude.json`
+**Windows:** `%USERPROFILE%\.claude.json`
 
 ```json
 {
   "mcpServers": {
-    "innervoice": {
+    "telegram": {
       "command": "node",
       "args": [
         "/ABSOLUTE/PATH/TO/innervoice/dist/mcp-server.js"
@@ -130,17 +170,27 @@ Add to your Claude Code MCP settings (`~/.config/claude-code/settings/mcp.json`)
 }
 ```
 
-**Find your path:**
+**Find your absolute path:**
+
+**Mac/Linux:**
 ```bash
 cd innervoice && pwd
 # Use output: <result>/dist/mcp-server.js
 ```
 
-#### MCP Config Locations
+**Windows (PowerShell):**
+```powershell
+cd innervoice
+(Get-Location).Path
+# Use output: <result>\dist\mcp-server.js
+```
 
-- **Global (all projects):** `~/.config/claude-code/settings/mcp.json`
-- **Per-project:** `your-project/.claude/mcp.json`
-- **VS Code:** `your-project/.vscode/mcp.json`
+**Windows (Command Prompt):**
+```cmd
+cd innervoice
+cd
+# Use output: <result>\dist\mcp-server.js
+```
 
 ### 6. Available Tools
 
@@ -150,6 +200,7 @@ Once configured, Claude can automatically use:
 - `telegram_get_messages` - Check for messages from you
 - `telegram_reply` - Reply to your messages
 - `telegram_check_health` - Check bridge status
+- `telegram_toggle_afk` - Toggle AFK mode (enable/disable notifications)
 
 **View detailed tool info:**
 ```bash
@@ -158,7 +209,60 @@ pnpm tools
 node scripts/list-tools.js
 ```
 
-### 7. Test It
+### 7. AFK Mode - Control Your Notifications
+
+Use the `/afk` slash command to toggle notifications on/off:
+
+```bash
+# In Claude Code, just type:
+/afk
+```
+
+This is perfect for:
+- **Enabling** when you step away from your computer (get notified via Telegram)
+- **Disabling** when you're actively working (no interruptions)
+
+The toggle state is preserved while the bridge is running, and you'll get a Telegram message confirming each change.
+
+### 8. Verify Global Setup
+
+After adding the MCP server, verify it's available globally:
+
+```bash
+# Check that telegram appears in the list
+claude mcp list
+
+# Should show:
+# ✓ telegram: Connected
+```
+
+**Troubleshooting:** If `telegram` only appears in one project but not others, it was added to a project-specific config instead of globally. To fix:
+
+1. Open `~/.claude.json` in your editor
+2. Find the `telegram` server config under `projects` → `your-project-path` → `mcpServers`
+3. **Move it** to the root-level `mcpServers` section (same level as other global servers)
+4. Remove the `telegram` entry from the project-specific section
+
+**Example structure:**
+```json
+{
+  "mcpServers": {
+    "telegram": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/innervoice/dist/mcp-server.js"],
+      "env": {"TELEGRAM_BRIDGE_URL": "http://localhost:3456"}
+    }
+  },
+  "projects": {
+    "/your/project/path": {
+      "mcpServers": {}  // Should be empty or not contain telegram
+    }
+  }
+}
+```
+
+### 9. Test It
 
 Restart Claude Code, then tell Claude:
 
@@ -216,6 +320,20 @@ Check if the Telegram bridge is running and healthy.
 **Example Claude Usage:**
 > "Let me verify the Telegram bridge is working."
 > *Claude uses: `telegram_check_health({})`*
+
+### `telegram_toggle_afk`
+Toggle AFK (Away From Keyboard) mode - enables or disables Telegram notifications.
+
+**No parameters required**
+
+**Example Claude Usage:**
+> "Toggle AFK mode"
+> *Claude uses: `telegram_toggle_afk({})`*
+
+**When to use:**
+- Enable when stepping away from your computer (get notifications)
+- Disable when actively working (avoid interruptions)
+- State is preserved while the bridge is running
 
 ## Git Setup (For Sharing)
 
@@ -440,6 +558,30 @@ Check service health
   "chatId": "set",
   "unreadMessages": 0,
   "pendingQuestions": 0
+}
+```
+
+### POST /toggle
+Toggle notifications on/off (AFK mode)
+
+**Response:**
+```json
+{
+  "success": true,
+  "enabled": true,
+  "previousState": false,
+  "message": "🟢 InnerVoice notifications ENABLED - You will receive messages"
+}
+```
+
+### GET /status
+Get current notification state
+
+**Response:**
+```json
+{
+  "enabled": true,
+  "message": "Notifications are ON"
 }
 ```
 

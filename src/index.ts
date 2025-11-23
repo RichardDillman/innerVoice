@@ -10,7 +10,7 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);
 const app = express();
 const PORT = parseInt(process.env.PORT || '3456');
 const HOST = process.env.HOST || 'localhost';
-const ENABLED = process.env.ENABLED !== 'false';
+let ENABLED = process.env.ENABLED !== 'false'; // Now mutable for runtime toggling
 
 let chatId: string | null = process.env.TELEGRAM_CHAT_ID || null;
 const envPath = path.join(process.cwd(), '.env');
@@ -253,6 +253,40 @@ app.get('/health', (req, res) => {
     chatId: chatId ? 'set' : 'not set',
     unreadMessages: messageQueue.filter(m => !m.read).length,
     pendingQuestions: pendingQuestions.size
+  });
+});
+
+// Toggle enabled state
+app.post('/toggle', async (req, res) => {
+  const previousState = ENABLED;
+  ENABLED = !ENABLED;
+
+  const statusMessage = ENABLED
+    ? '🟢 InnerVoice notifications ENABLED - You will receive messages'
+    : '🔴 InnerVoice notifications DISABLED - Messages paused';
+
+  // Notify via Telegram if chat ID is set
+  if (chatId) {
+    try {
+      await bot.telegram.sendMessage(chatId, statusMessage, { parse_mode: 'Markdown' });
+    } catch (error) {
+      console.error('Failed to send toggle notification:', error);
+    }
+  }
+
+  res.json({
+    success: true,
+    enabled: ENABLED,
+    previousState,
+    message: statusMessage
+  });
+});
+
+// Get current enabled state
+app.get('/status', (req, res) => {
+  res.json({
+    enabled: ENABLED,
+    message: ENABLED ? 'Notifications are ON' : 'Notifications are OFF (AFK mode)'
   });
 });
 
