@@ -24,13 +24,32 @@ After trying email, SMS, and Google Chat integrations, Telegram emerged as the b
 
 ## Features
 
+### Core Communication
 - 💬 **Two-Way Communication** - Send messages to Claude, get responses back
 - ❓ **Question/Answer Flow** - Claude can ask you questions and wait for answers
-- 📬 **Message Queue** - Messages queue up when Claude is busy, get answered ASAP
 - 🔔 **Priority Notifications** - Different icons for info, success, warning, error, question
 - 🌐 **HTTP API** - Easy integration from any app/project
 - 🚀 **Background Service** - Runs independently, always available
 - 🔧 **MCP Protocol** - Works as a standard MCP server in any Claude project
+
+### Multi-Project Support
+- 📁 **Project Context** - All messages show which project they're from
+- 🎯 **Targeted Messages** - Send messages to specific projects: `ProjectName: your message`
+- 📊 **Session Tracking** - Monitor active Claude sessions across projects
+- 🔄 **Auto-Session Registration** - Projects auto-register when Claude starts
+
+### Message Queue System
+- 📬 **Offline Queuing** - Messages queue when projects are offline
+- 📥 **Persistent Storage** - Queued messages survive restarts
+- ⏰ **Auto-Delivery** - Messages delivered when Claude starts in that project
+- 🧹 **Auto-Cleanup** - Old messages expire automatically
+
+### Remote Claude Spawner
+- 🚀 **Remote Spawning** - Start Claude in any project from Telegram
+- 📝 **Project Registry** - Register projects for easy remote access
+- 🔄 **Auto-Spawn** - Optional auto-start when messages arrive
+- 💀 **Process Management** - Track and kill spawned Claude instances
+- 🎯 **Initial Prompts** - Start Claude with a specific task
 
 ## How It Works
 
@@ -195,12 +214,13 @@ cd
 ### 6. Available Tools
 
 Once configured, Claude can automatically use:
-- `telegram_notify` - Send notifications
+- `telegram_notify` - Send notifications with project context
 - `telegram_ask` - Ask questions and wait for answers
 - `telegram_get_messages` - Check for messages from you
 - `telegram_reply` - Reply to your messages
 - `telegram_check_health` - Check bridge status
 - `telegram_toggle_afk` - Toggle AFK mode (enable/disable notifications)
+- `telegram_check_queue` - Check for queued messages on startup
 
 **View detailed tool info:**
 ```bash
@@ -300,6 +320,206 @@ Restart Claude Code, then tell Claude:
 
 Claude will automatically discover and use the `telegram_notify` tool!
 
+## Usage Scenarios
+
+InnerVoice supports multiple usage patterns depending on your workflow:
+
+### Scenario 1: Single Active Project
+**Use Case:** You're actively working in one project
+
+**How it works:**
+1. Start Claude Code in your project
+2. Claude auto-registers its session
+3. All messages go to the active session
+4. Messages show project context: `📁 MyProject [#abc1234]`
+
+**Example:**
+```
+You in Telegram: "Check the test status"
+Bot: 💬 Message received - responding...
+Claude: "Running tests... ✅ All 42 tests passed!"
+```
+
+### Scenario 2: Multiple Active Projects
+**Use Case:** Working across multiple projects simultaneously
+
+**How it works:**
+1. Start Claude in multiple projects (each auto-registers)
+2. Send targeted messages: `ProjectName: your message`
+3. View active sessions with `/sessions`
+4. Each response shows its project context
+
+**Example:**
+```
+You: "/sessions"
+Bot: Active Claude Sessions (3)
+     1. 🟢 ESO-MCP [#abc1234]
+        Last active: 2m ago
+     2. 🟢 InnerVoice [#def5678]
+        Last active: 5m ago
+     3. 🟢 MyApp [#ghi9012]
+        Last active: 1m ago
+
+You: "ESO-MCP: run the scraper"
+Bot: 💬 Message sent to active session: ESO-MCP
+Claude in ESO-MCP: 📁 ESO-MCP [#abc1234]
+                    ✅ Scraper started...
+```
+
+### Scenario 3: Offline Project Queuing
+**Use Case:** Send work to a project before Claude is running
+
+**How it works:**
+1. Send: `ProjectName: your task`
+2. If project offline, message queues automatically
+3. Start Claude in that project
+4. Claude checks queue on startup and processes tasks
+
+**Example:**
+```
+You: "MyApp: fix the login bug"
+Bot: 📥 Message queued for MyApp (offline)
+     It will be delivered when Claude starts in that project.
+
+[Later, you start Claude in MyApp]
+Claude: 📬 You have 1 queued message:
+        1. From Richard (2:30 PM)
+           fix the login bug
+
+        These messages were sent while you were offline.
+        [Claude proceeds to work on the task]
+```
+
+### Scenario 4: Remote Claude Spawning
+**Use Case:** Start work remotely without opening your terminal
+
+**Setup:**
+```
+# Register your projects once
+You: "/register MyApp ~/code/myapp"
+Bot: ✅ Project registered successfully!
+     📁 MyApp
+     📍 /Users/you/code/myapp
+     ⏸️ Manual spawn only
+
+     Spawn with: /spawn MyApp
+```
+
+**Daily Usage:**
+```
+You: "/spawn MyApp Fix the login bug"
+Bot: ⏳ Starting Claude in MyApp...
+     ✅ Claude started in MyApp with prompt: "Fix the login bug"
+     PID: 12345
+
+     You can now send messages to it: MyApp: your message
+
+[Claude automatically starts working on the bug]
+Claude: 📁 MyApp [#abc1234]
+        🔍 Analyzing login flow...
+        ✅ Bug fixed! The session timeout was too short.
+```
+
+### Scenario 5: Auto-Spawn Projects
+**Use Case:** Projects that should start automatically when messaged
+
+**Setup:**
+```
+You: "/register MyApp ~/code/myapp --auto-spawn"
+Bot: ✅ Project registered successfully!
+     📁 MyApp
+     📍 /Users/you/code/myapp
+     🔄 Auto-spawn enabled
+```
+
+**Daily Usage:**
+```
+You: "MyApp: run the tests"
+Bot: 🚀 Auto-spawning Claude in MyApp...
+     ✅ Claude started in MyApp
+     PID: 12345
+
+[Claude auto-starts and processes the message]
+Claude: 📁 MyApp [#abc1234]
+        🧪 Running test suite...
+        ✅ All 42 tests passed!
+```
+
+### Scenario 6: Managing Multiple Projects
+**View all projects:**
+```
+You: "/projects"
+Bot: Registered Projects (4)
+
+     1. 🟢 ESO-MCP 🔄
+        📍 /Users/you/code/eso-mcp
+        🕐 Last: 12/23/2025
+
+     2. ⚪ InnerVoice ⏸️
+        📍 /Users/you/code/innervoice
+        🕐 Last: 12/22/2025
+
+     3. 🟢 MyApp 🔄
+        📍 /Users/you/code/myapp
+        🕐 Last: 12/23/2025
+
+     4. ⚪ TestProject ⏸️
+        📍 /Users/you/code/test
+        🕐 Last: 12/20/2025
+
+     🟢 Running  ⚪ Offline  🔄 Auto-spawn  ⏸️ Manual
+```
+
+**Check running processes:**
+```
+You: "/spawned"
+Bot: Spawned Claude Processes (2)
+
+     1. ESO-MCP
+        🆔 PID: 12345
+        ⏱️  Running: 15m
+        💬 "run the scraper"
+
+     2. MyApp
+        🆔 PID: 12346
+        ⏱️  Running: 5m
+
+     Kill with: /kill ProjectName
+```
+
+**Stop a project:**
+```
+You: "/kill MyApp"
+Bot: 🛑 ✅ Claude process terminated in MyApp
+```
+
+## Telegram Bot Commands
+
+Complete list of available bot commands:
+
+### Session Management
+- `/sessions` - List all active Claude sessions with status
+- `/queue` - View queued messages for offline projects
+
+### Project Management
+- `/projects` - List all registered projects with status
+- `/register ProjectName /path [--auto-spawn]` - Register a new project
+- `/unregister ProjectName` - Remove a project from registry
+- `/spawn ProjectName [prompt]` - Start Claude in a project
+- `/spawned` - List all running spawned Claude processes
+- `/kill ProjectName` - Terminate a spawned Claude process
+
+### Bot Control
+- `/start` - Initialize bot and save your chat ID
+- `/help` - Show all available commands
+- `/status` - Check bridge health and status
+- `/test` - Send a test notification
+
+### Message Syntax
+- Regular message: Goes to active Claude (if only one running)
+- `ProjectName: message` - Send to specific project
+- If project offline, message automatically queues
+
 ## MCP Tools Reference
 
 Once configured, Claude can automatically use these tools:
@@ -364,6 +584,25 @@ Toggle AFK (Away From Keyboard) mode - enables or disables Telegram notification
 - Enable when stepping away from your computer (get notifications)
 - Disable when actively working (avoid interruptions)
 - State is preserved while the bridge is running
+
+### `telegram_check_queue`
+Check if there are queued messages for this project from when Claude was offline.
+
+**No parameters required**
+
+**Example Claude Usage:**
+> "On startup, let me check for any queued messages."
+> *Claude uses: `telegram_check_queue({})`*
+
+**Returns:**
+- List of messages sent while Claude was offline
+- Includes sender, timestamp, and message content
+- Messages are marked as delivered after retrieval
+
+**When to use:**
+- On startup to catch up on offline messages
+- Proactively check for pending work
+- After long idle periods
 
 ## Git Setup (For Sharing)
 
@@ -442,31 +681,36 @@ await fetch('http://localhost:3456/notify', {
 - `error` - ❌ Error occurred
 - `question` - ❓ Needs your input
 
-## Bot Commands
+## How Communication Works
 
-Type these in Telegram to control the bridge:
-
-- `/start` - Initialize connection and save your chat ID
-- `/help` - Show all available commands and how to use the bridge
-- `/status` - Check bridge status (enabled, unread messages, pending questions)
-- `/test` - Send a test notification to verify it's working
-
-## How Two-Way Communication Works
-
-### You → Claude
+### Basic Message Flow
 1. Send any message to the bot in Telegram
 2. Bot acknowledges with "💬 Message received - responding..."
 3. Claude checks messages and responds when available
-4. You get the response in Telegram
+4. You get the response in Telegram with project context
 
-### Claude → You (Notifications)
-Claude sends you updates via the `/notify` API endpoint with different priorities
+### Targeted Messages
+Send `ProjectName: your message` to communicate with a specific project:
+- If project is running: Message delivered immediately
+- If project is offline: Message queues automatically
 
-### Claude → You (Questions)
-1. Claude sends a question via `/ask` API
+### Notifications
+Claude sends you updates via the `telegram_notify` tool with:
+- Project context: `📁 ProjectName [#abc1234]`
+- Priority icons: ℹ️ ✅ ⚠️ ❌ ❓
+- Markdown formatting support
+
+### Questions
+1. Claude sends a question via `telegram_ask`
 2. You see "❓ [question]" in Telegram
 3. Your next message is automatically treated as the answer
 4. Claude receives your answer and continues
+
+### Queued Messages
+1. Send message to offline project
+2. Message queues persistently
+3. When Claude starts in that project, it checks the queue
+4. Queued messages are delivered and processed
 
 ## Running as Background Service
 
@@ -612,6 +856,221 @@ Get current notification state
 {
   "enabled": true,
   "message": "Notifications are ON"
+}
+```
+
+### Session Management Endpoints
+
+#### POST /session/register
+Register or update a Claude session
+
+**Request:**
+```json
+{
+  "sessionId": "unique-session-id",
+  "projectName": "MyProject",
+  "projectPath": "/path/to/project"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "sessionId": "unique-session-id",
+  "projectName": "MyProject"
+}
+```
+
+#### GET /sessions
+List all active Claude sessions
+
+**Response:**
+```json
+{
+  "sessions": [
+    {
+      "id": "1234567-abc",
+      "projectName": "MyProject",
+      "projectPath": "/path/to/project",
+      "startTime": "2025-11-23T10:00:00.000Z",
+      "lastActivity": "2025-11-23T10:30:00.000Z",
+      "status": "active",
+      "idleMinutes": 5
+    }
+  ],
+  "count": 1
+}
+```
+
+### Queue Management Endpoints
+
+#### GET /queue/:projectName
+Get pending messages for a project
+
+**Response:**
+```json
+{
+  "projectName": "MyProject",
+  "tasks": [
+    {
+      "id": "task-123",
+      "projectName": "MyProject",
+      "message": "Fix the bug",
+      "from": "Richard",
+      "timestamp": "2025-11-23T09:00:00.000Z",
+      "priority": "normal",
+      "status": "pending"
+    }
+  ],
+  "count": 1
+}
+```
+
+#### GET /queue/summary
+Get summary of all queued messages
+
+**Response:**
+```json
+{
+  "summary": [
+    {
+      "projectName": "MyProject",
+      "pending": 2,
+      "delivered": 5,
+      "total": 7
+    }
+  ],
+  "totalProjects": 1
+}
+```
+
+### Project Registry Endpoints
+
+#### GET /projects
+List all registered projects
+
+**Response:**
+```json
+{
+  "projects": [
+    {
+      "name": "MyProject",
+      "path": "/path/to/project",
+      "lastAccessed": "2025-11-23T10:00:00.000Z",
+      "autoSpawn": false,
+      "metadata": {
+        "description": "My project description",
+        "tags": ["web", "api"]
+      }
+    }
+  ],
+  "count": 1
+}
+```
+
+#### POST /projects/register
+Register a new project
+
+**Request:**
+```json
+{
+  "name": "MyProject",
+  "path": "/path/to/project",
+  "autoSpawn": false,
+  "description": "Optional description",
+  "tags": ["tag1", "tag2"]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "project": {
+    "name": "MyProject",
+    "path": "/path/to/project",
+    "lastAccessed": "2025-11-23T10:00:00.000Z",
+    "autoSpawn": false
+  }
+}
+```
+
+#### DELETE /projects/:name
+Unregister a project
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Project MyProject unregistered"
+}
+```
+
+### Claude Spawner Endpoints
+
+#### POST /spawn
+Spawn Claude in a registered project
+
+**Request:**
+```json
+{
+  "projectName": "MyProject",
+  "initialPrompt": "Optional initial task"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "✅ Claude started in MyProject",
+  "pid": 12345
+}
+```
+
+#### POST /kill/:projectName
+Terminate a spawned Claude process
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "✅ Claude process terminated in MyProject"
+}
+```
+
+#### GET /spawned
+List all spawned Claude processes
+
+**Response:**
+```json
+{
+  "processes": [
+    {
+      "projectName": "MyProject",
+      "pid": 12345,
+      "startTime": "2025-11-23T10:00:00.000Z",
+      "initialPrompt": "Fix the bug",
+      "runningMinutes": 15
+    }
+  ],
+  "count": 1
+}
+```
+
+#### GET /spawned/:projectName
+Check if Claude is running in a project
+
+**Response:**
+```json
+{
+  "running": true,
+  "process": {
+    "projectName": "MyProject",
+    "pid": 12345,
+    "runningMinutes": 15
+  }
 }
 ```
 
