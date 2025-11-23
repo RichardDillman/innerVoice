@@ -15,16 +15,45 @@ let ENABLED = process.env.ENABLED !== 'false'; // Now mutable for runtime toggli
 let chatId: string | null = process.env.TELEGRAM_CHAT_ID || null;
 const envPath = path.join(process.cwd(), '.env');
 
+// Session tracking for multi-project support
+interface ClaudeSession {
+  id: string;
+  projectName: string;
+  projectPath: string;
+  startTime: Date;
+  lastActivity: Date;
+  status: 'active' | 'idle';
+}
+
+const activeSessions = new Map<string, ClaudeSession>();
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes of inactivity
+
 // Message queue for two-way communication
 interface QueuedMessage {
   from: string;
   message: string;
   timestamp: Date;
   read: boolean;
+  sessionId?: string; // Target session for this message
 }
 
 const messageQueue: QueuedMessage[] = [];
-const pendingQuestions = new Map<string, { resolve: (answer: string) => void; timeout: NodeJS.Timeout }>();
+const pendingQuestions = new Map<string, {
+  resolve: (answer: string) => void;
+  timeout: NodeJS.Timeout;
+  sessionId?: string;
+}>();
+
+// Clean up expired sessions periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, session] of activeSessions.entries()) {
+    if (now - session.lastActivity.getTime() > SESSION_TIMEOUT) {
+      console.log(`🧹 Removing expired session: ${sessionId} (${session.projectName})`);
+      activeSessions.delete(sessionId);
+    }
+  }
+}, 5 * 60 * 1000); // Check every 5 minutes
 
 app.use(express.json());
 
@@ -77,12 +106,15 @@ bot.command('help', async (ctx) => {
     '`/start` - Initialize and connect\n' +
     '`/help` - Show this help message\n' +
     '`/status` - Check bridge status\n' +
+    '`/sessions` - List active Claude sessions\n' +
     '`/test` - Send test notification\n\n' +
     '*How it works:*\n' +
     '• Send me any message - I forward it to Claude\n' +
     '• Claude processes it and replies back\n' +
-    '• When Claude asks a question, your next message answers it\n\n' +
+    '• When Claude asks a question, your next message answers it\n' +
+    '• Messages show project context: 📁 ProjectName [#abc1234]\n\n' +
     '*Features:*\n' +
+    '✅ Multi-project session tracking\n' +
     '✅ Two-way communication\n' +
     '✅ Question/Answer flow\n' +
     '✅ Progress notifications\n' +
@@ -94,6 +126,27 @@ bot.command('help', async (ctx) => {
 
 bot.command('test', async (ctx) => {
   await ctx.reply('✅ Test notification received! Bridge is working.');
+});
+
+bot.command('sessions', async (ctx) => {
+  const sessions = Array.from(activeSessions.values());
+
+  if (sessions.length === 0) {
+    await ctx.reply('📭 No active Claude sessions');
+    return;
+  }
+
+  const sessionList = sessions.map((s, i) => {
+    const shortId = s.id.substring(0, 7);
+    const idleMinutes = Math.floor((Date.now() - s.lastActivity.getTime()) / 60000);
+    const statusEmoji = s.status === 'active' ? '🟢' : '🟡';
+    return `${i + 1}. ${statusEmoji} *${s.projectName}* [#${shortId}]\n   Last active: ${idleMinutes}m ago`;
+  }).join('\n\n');
+
+  await ctx.reply(
+    `*Active Claude Sessions* (${sessions.length})\n\n${sessionList}\n\n_Reply with #sessionId to send a message to a specific session_`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
 // Listen for any text messages from user
@@ -128,6 +181,70 @@ bot.on('text', async (ctx) => {
   console.log('📥 Queued for Claude to process');
 });
 
+// Register or update a Claude session
+app.post('/session/register', (req, res) => {
+  const { sessionId, projectName, projectPath } = req.body;
+
+  if (!sessionId || !projectName || !projectPath) {
+    return res.status(400).json({ error: 'sessionId, projectName, and projectPath are required' });
+  }
+
+  const now = new Date();
+  const existing = activeSessions.get(sessionId);
+
+  if (existing) {
+    // Update existing session
+    existing.lastActivity = now;
+    existing.status = 'active';
+  } else {
+    // Create new session
+    activeSessions.set(sessionId, {
+      id: sessionId,
+      projectName,
+      projectPath,
+      startTime: now,
+      lastActivity: now,
+      status: 'active'
+    });
+    console.log(`📝 Registered new session: ${sessionId} (${projectName})`);
+  }
+
+  res.json({ success: true, sessionId, projectName });
+});
+
+// Update session activity
+app.post('/session/heartbeat', (req, res) => {
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'sessionId is required' });
+  }
+
+  const session = activeSessions.get(sessionId);
+  if (session) {
+    session.lastActivity = new Date();
+    session.status = 'active';
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'Session not found' });
+  }
+});
+
+// List active sessions
+app.get('/sessions', (req, res) => {
+  const sessions = Array.from(activeSessions.values()).map(s => ({
+    id: s.id,
+    projectName: s.projectName,
+    projectPath: s.projectPath,
+    startTime: s.startTime,
+    lastActivity: s.lastActivity,
+    status: s.status,
+    idleMinutes: Math.floor((Date.now() - s.lastActivity.getTime()) / 60000)
+  }));
+
+  res.json({ sessions, count: sessions.length });
+});
+
 // HTTP endpoint for sending notifications
 app.post('/notify', async (req, res) => {
   if (!ENABLED) {
@@ -135,12 +252,12 @@ app.post('/notify', async (req, res) => {
   }
 
   if (!chatId) {
-    return res.status(400).json({ 
-      error: 'No chat ID set. Please message the bot first with /start' 
+    return res.status(400).json({
+      error: 'No chat ID set. Please message the bot first with /start'
     });
   }
 
-  const { message, priority = 'info', parseMode = 'Markdown' } = req.body;
+  const { message, priority = 'info', parseMode = 'Markdown', sessionId } = req.body;
 
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
@@ -156,9 +273,20 @@ app.post('/notify', async (req, res) => {
     };
     const emoji = emojiMap[priority] || 'ℹ️';
 
+    // Add project context if session ID provided
+    let projectContext = '';
+    if (sessionId) {
+      const session = activeSessions.get(sessionId);
+      if (session) {
+        session.lastActivity = new Date();
+        const shortId = sessionId.substring(0, 7);
+        projectContext = `📁 *${session.projectName}* [#${shortId}]\n`;
+      }
+    }
+
     await bot.telegram.sendMessage(
       chatId,
-      `${emoji} ${message}`,
+      `${projectContext}${emoji} ${message}`,
       { parse_mode: parseMode as any }
     );
 

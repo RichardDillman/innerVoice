@@ -20,6 +20,50 @@ const BRIDGE_HOST = new URL(BRIDGE_URL).hostname || 'localhost';
 
 let bridgeProcess: ChildProcess | null = null;
 
+// Session management
+let currentSessionId: string | null = null;
+let currentProjectName: string | null = null;
+let currentProjectPath: string | null = null;
+
+// Get or create session ID
+function getSessionId(): string {
+  if (!currentSessionId) {
+    currentSessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+  return currentSessionId;
+}
+
+// Get project name from current working directory
+function getProjectInfo(): { name: string; path: string } {
+  const cwd = process.cwd();
+  const name = cwd.split('/').pop() || 'Unknown';
+  return { name, path: cwd };
+}
+
+// Register this session with the bridge
+async function registerSession(): Promise<void> {
+  const sessionId = getSessionId();
+  const { name, path } = getProjectInfo();
+
+  currentProjectName = name;
+  currentProjectPath = path;
+
+  try {
+    await fetch(`${BRIDGE_URL}/session/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        projectName: name,
+        projectPath: path
+      })
+    });
+    console.error(`✅ Session registered: ${name} [${sessionId.substring(0, 7)}]`);
+  } catch (error) {
+    console.error('⚠️  Failed to register session:', error);
+  }
+}
+
 // Check if the bridge is running
 async function isBridgeRunning(): Promise<boolean> {
   try {
@@ -208,7 +252,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const response = await fetch(`${BRIDGE_URL}/notify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, priority }),
+          body: JSON.stringify({
+            message,
+            priority,
+            sessionId: getSessionId()
+          }),
         });
 
         if (!response.ok) {
@@ -394,6 +442,9 @@ process.on('SIGTERM', () => {
 async function main() {
   // Ensure the bridge is running before starting the MCP server
   await ensureBridge();
+
+  // Register this Claude session
+  await registerSession();
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
