@@ -3,6 +3,42 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { findProject, touchProject } from './project-registry.js';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+// Load .env file from a directory and return as object
+function loadEnvFile(dirPath: string): Record<string, string> {
+  const envPath = join(dirPath, '.env');
+  const envVars: Record<string, string> = {};
+
+  if (existsSync(envPath)) {
+    try {
+      const content = readFileSync(envPath, 'utf-8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        // Skip comments and empty lines
+        if (!trimmed || trimmed.startsWith('#')) continue;
+
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex > 0) {
+          const key = trimmed.substring(0, eqIndex).trim();
+          let value = trimmed.substring(eqIndex + 1).trim();
+          // Remove quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) ||
+              (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          envVars[key] = value;
+        }
+      }
+      console.log(`[SPAWN] Loaded ${Object.keys(envVars).length} env vars from ${envPath}`);
+    } catch (error) {
+      console.error(`[SPAWN] Failed to load .env from ${envPath}:`, error);
+    }
+  }
+
+  return envVars;
+}
 
 interface SpawnedProcess {
   projectName: string;
@@ -38,6 +74,9 @@ export async function spawnClaude(
   }
 
   try {
+    // Load project's .env file to pass to Claude
+    const projectEnv = loadEnvFile(project.path);
+
     // Spawn Claude Code
     const claudeProcess = spawn('claude', initialPrompt ? [initialPrompt] : [], {
       cwd: project.path,
@@ -45,6 +84,7 @@ export async function spawnClaude(
       detached: true,
       env: {
         ...process.env,
+        ...projectEnv, // Include project's .env variables
         INNERVOICE_SPAWNED: '1' // Mark as spawned by InnerVoice
       }
     });

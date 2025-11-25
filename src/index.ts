@@ -419,7 +419,10 @@ bot.on('text', async (ctx) => {
     const activeSession = Array.from(activeSessions.values())
       .find(s => s.projectName.toLowerCase() === targetProject.toLowerCase());
 
-    if (activeSession) {
+    // Check if Claude is actually running (not just session registered)
+    const claudeActuallyRunning = isClaudeRunning(targetProject);
+
+    if (activeSession && claudeActuallyRunning) {
       // Add to message queue with session ID
       messageQueue.push({
         from,
@@ -430,6 +433,11 @@ bot.on('text', async (ctx) => {
       });
       await ctx.reply(`💬 Message sent to active session: *${activeSession.projectName}*`, { parse_mode: 'Markdown' });
     } else {
+      // Clean up stale session if Claude exited
+      if (activeSession && !claudeActuallyRunning) {
+        console.log(`[CLEANUP] Removing stale session for ${activeSession.projectName} (Claude not running)`);
+        activeSessions.delete(activeSession.id);
+      }
       // No active session - check if project is registered and should auto-spawn
       try {
         const project = await findProject(targetProject);
