@@ -411,7 +411,8 @@ bot.on('text', async (ctx) => {
   }
 
   // Check if message is targeted to a specific project: "ProjectName: message"
-  const projectMatch = message.match(/^([a-zA-Z0-9-_]+):\s*(.+)/);
+  // Use 's' flag (dotall) so . matches newlines for multi-line messages
+  const projectMatch = message.match(/^([a-zA-Z0-9-_]+):\s*(.+)/s);
   if (projectMatch) {
     const [, targetProject, actualMessage] = projectMatch;
 
